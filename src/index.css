@@ -1,0 +1,324 @@
+@import url('https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@300;400;500&family=M+PLUS+Rounded+1c:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg-color: #e2e8f0;
+  /* 少し落ち着いた背景色 */
+  --paper-color: #ffffff;
+  --text-main: #2d3748;
+  --text-sub: #718096;
+  --accent-color: #2f855a;
+  --highlight-color: #d69e2e;
+  --border-color: #cbd5e0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  overflow-x: hidden;
+}
+
+@page {
+  size: A3 landscape;
+  margin: 0;
+}
+
+@media print {
+  body {
+    background-color: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .app-container {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .page-sheet {
+    margin: 0 !important;
+    border: none !important;
+    width: 420mm !important;
+    height: 297mm !important;
+    box-shadow: none !important;
+  }
+}
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 50px;
+}
+
+/* ヘッダーコントロールをより使いやすく */
+.header-controls {
+  width: 95%;
+  max-width: 1400px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
+  border-radius: 18px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  margin: 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  z-index: 1000;
+  position: sticky;
+  top: 15px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-sheet {
+  background: var(--paper-color);
+  width: 420mm;
+  height: 297mm;
+  padding: 25mm;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  display: flex;
+  gap: 25mm;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease-out;
+}
+
+.left-side,
+.right-side {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* タイトル入力のフォントサイズ調整 */
+.main-title-input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: center;
+  outline: none;
+  font-family: 'Kiwi Maru', serif;
+  font-size: 3.8rem;
+  color: var(--accent-color);
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  margin: 0.2rem 0;
+}
+
+/* テーブルの整列 */
+.timetable-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 1rem;
+}
+
+.timetable-table th,
+.timetable-table td {
+  border: 2px solid #2d3748;
+  padding: 0;
+  text-align: center;
+}
+
+.timetable-table th {
+  background-color: #edf2f7;
+  height: 55px;
+}
+
+.timetable-table td {
+  height: 65px;
+}
+
+.cell-input-subject {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: 'Kiwi Maru', serif;
+  font-weight: bold;
+  font-size: 1.25rem;
+  text-align: center;
+  outline: none;
+  color: var(--accent-color);
+}
+
+.cell-input-unit {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  text-align: center;
+  outline: none;
+  color: #4a5568;
+  resize: none;
+  display: block;
+  overflow: hidden;
+}
+
+.row-morning td {
+  height: 45px;
+  background-color: #f7fafc;
+}
+
+.row-dismissal td {
+  height: 50px;
+  background-color: #fffaf0;
+}
+
+.announcement-wide {
+  padding: 1.5rem;
+  border: 3px solid var(--accent-color);
+  border-radius: 16px;
+  background-color: #fffdfa;
+  width: 100%;
+  margin-top: auto;
+}
+
+.announcement-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.image-gallery {
+  display: flex;
+  gap: 15px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 1.5rem;
+  justify-content: center;
+  align-items: flex-start;
+  /* 上揃えにして高さを固定しない */
+}
+
+.gallery-item {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  max-height: 400px;
+  /* 少し高さを出しました */
+  border-radius: 15px;
+  overflow: hidden;
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  transition: all 0.3s ease;
+}
+
+/* 写真が1枚のとき、2枚目を入れる枠（no-print）を小さくする魔法 */
+.image-gallery .gallery-item:not(.no-print) {
+  flex: 3;
+  /* 写真の方を大きく！ */
+}
+
+.image-gallery .gallery-item.no-print {
+  flex: 1;
+  max-width: 150px;
+  /* プラスボタンは控えめに */
+  aspect-ratio: 1 / 1;
+  /* 正方形にする */
+  align-self: center;
+}
+
+/* 写真が0枚のときは、プラスボタンを大きく表示 */
+.image-gallery .gallery-item.no-print:only-child {
+  flex: 1;
+  max-width: 100%;
+  aspect-ratio: 2 / 1;
+}
+
+/* 写真が2枚あるときは、no-printは消えるので flex: 1 同士で50/50になる */
+
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+/* ボタンと入力UI */
+.input-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 0.85rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s;
+}
+
+.modal-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(47, 133, 90, 0.1);
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  white-space: nowrap;
+  /* 文字が縦にならないように固定 */
+  gap: 8px;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: var(--accent-color);
+  color: white;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4a5568;
+  cursor: pointer;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
