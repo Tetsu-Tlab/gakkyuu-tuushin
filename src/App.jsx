@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Printer, FileSpreadsheet, Image as ImageIcon, Plus, Trash2, Calendar, Settings, Sparkles, ZoomIn, ZoomOut, Save, Type, X, FolderOpen, Database, RefreshCw, AlertCircle } from 'lucide-react';
+import { Printer, FileSpreadsheet, Image as ImageIcon, Plus, Trash2, Calendar, Settings, Sparkles, ZoomIn, ZoomOut, Save, Type, X, FolderOpen, Database, RefreshCw, AlertCircle, ExternalLink, CheckCircle2, Copy, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const App = () => {
@@ -12,6 +12,7 @@ const App = () => {
   });
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [zoom, setZoom] = useState(0.45);
@@ -36,37 +37,43 @@ const App = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (config.gasUrl) localStorage.setItem('gasUrl', config.gasUrl.trim());
+    if (config.gasUrl) {
+      localStorage.setItem('gasUrl', config.gasUrl.trim());
+    } else {
+      // 初回起動時やURL未設定時にガイドを推奨する
+      setShowGuide(!localStorage.getItem('gasUrl'));
+    }
   }, [config.gasUrl]);
 
   // --- 絶対に繋がるJSONP読み込みの魔法 ---
   const loadFromGoogle = async () => {
     const url = config.gasUrl.trim();
     if (!url || !url.includes("exec")) {
-      alert("正しいGASのURLを設定してください！");
       setShowSettings(true);
+      setShowGuide(true);
       return;
     }
 
     setIsLoading(true);
     const callbackName = 'callback_' + Math.round(100000 * Math.random());
 
-    // ブラウザのグローバル関数としてコールバックを登録
     window[callbackName] = (data) => {
-      console.log("JSONP Data received:", data);
       delete window[callbackName];
-      document.body.removeChild(script);
+      const script = document.getElementById('jsonp-script');
+      if (script) document.body.removeChild(script);
 
       if (data.error) {
         alert("スプシよりエラー: " + data.error);
       } else {
         setNewsData(prev => ({ ...prev, ...data }));
-        alert("スプシから読み込みました！✨🌈");
+        // 成功感のあるアラート（本当はトーストUIがいいけど一旦alertで）
+        setTimeout(() => alert("スプシから読み込みました！✨🌈"), 100);
       }
       setIsLoading(false);
     };
 
     const script = document.createElement('script');
+    script.id = 'jsonp-script';
     script.src = `${url}?action=load&callback=${callbackName}`;
     script.onerror = () => {
       alert("スプシに繋げませんでした。URLが正しいか確認してね！");
@@ -78,8 +85,8 @@ const App = () => {
   const saveToGoogle = async () => {
     const url = config.gasUrl.trim();
     if (!url || !url.includes("exec")) {
-      alert("URLを設定してください！");
       setShowSettings(true);
+      setShowGuide(true);
       return;
     }
     setIsSaving(true);
@@ -117,6 +124,36 @@ const App = () => {
 
   const periodRows = [1, 2, 3, 4, 5, 6];
   if (config.show7th) periodRows.push(7);
+
+  const GuideSteps = () => (
+    <div className="guide-container">
+      <div className={`guide-step ${!config.gasUrl ? 'active' : ''}`}>
+        <div className="step-number">1</div>
+        <div className="step-content">
+          <h4>スプレッドシートをコピー</h4>
+          <p>まずは土台となる管理シートを自分のGoogleドライブにコピーしましょう！</p>
+          <a href="https://docs.google.com/spreadsheets/d/1wc2bDiUVGm6h8hv83OR0mwEAARlDTLiJcgYDrVNVi2M/copy" target="_blank" rel="noopener noreferrer" className="guide-link">
+            <Copy size={16} /> シートをコピーする
+          </a>
+        </div>
+      </div>
+      <div className="guide-step">
+        <div className="step-number">2</div>
+        <div className="step-content">
+          <h4>Webアプリとして公開</h4>
+          <p>スプシの「拡張機能」→「Apps Script」を開き、青い「デプロイ」ボタンから「ウェブアプリ」として公開します。</p>
+          <p style={{ fontSize: '0.8rem', color: '#e53e3e', fontWeight: 'bold', marginTop: '4px' }}>※アクセスできるユーザーを「全員(Anyone)」にするのがコツです！</p>
+        </div>
+      </div>
+      <div className="guide-step">
+        <div className="step-number">3</div>
+        <div className="step-content">
+          <h4>URLをここに貼り付け</h4>
+          <p>発行された「ウェブアプリURL」をコピーして、下の入力欄に貼り付ければ完了です！🚀</p>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="app-container">
@@ -161,17 +198,89 @@ const App = () => {
         </div>
       </div>
 
+      {/* 初期セットアップバナー */}
+      {!config.gasUrl && (
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="setup-banner no-print"
+        >
+          <div className="setup-banner-content">
+            <div style={{ background: '#fff', padding: '10px', borderRadius: '12px', color: '#166534' }}>
+              <Rocket size={24} />
+            </div>
+            <div>
+              <h3>スプレッドシートと連携しましょう！</h3>
+              <p>連携すると、時間割やメッセージを自動で読み込めるようになります ✨</p>
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={() => { setShowSettings(true); setShowGuide(true); }}>
+            設定ガイドを開く
+          </button>
+        </motion.div>
+      )}
+
       <AnimatePresence>
         {showSettings && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} style={{ background: '#fff', width: '100%', maxWidth: '550px', borderRadius: '24px', padding: '2.5rem', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} style={{ background: '#fff', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '2.5rem', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>連携設定</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>{showGuide ? "らくらく連携ガイド" : "連携設定"}</h2>
+                  {config.gasUrl && (
+                    <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={12} /> 連携済み
+                    </span>
+                  )}
+                </div>
                 <button onClick={() => setShowSettings(false)} className="btn" style={{ padding: '0.5rem' }}><X size={20} /></button>
               </div>
-              <label className="input-label">GAS Webアプリ URL (末尾がexecのもの)</label>
-              <input className="modal-input" value={config.gasUrl} onChange={e => setConfig({ ...config, gasUrl: e.target.value })} />
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setShowSettings(false)}>閉じる</button>
+
+              {showGuide ? (
+                <>
+                  <GuideSteps />
+                  <div style={{ marginTop: '2rem', borderTop: '1.5px solid #e2e8f0', paddingTop: '1.5rem' }}>
+                    <label className="input-label">コピーしたURLをここに貼り付け</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <input
+                        className="modal-input"
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        value={config.gasUrl}
+                        onChange={e => setConfig({ ...config, gasUrl: e.target.value })}
+                      />
+                    </div>
+                    <p style={{ marginTop: '8px', fontSize: '0.8rem', color: '#64748b' }}>
+                      ※URLはブラウザのLocalStorageに安全に保存されます。
+                    </p>
+                  </div>
+                  <button className="btn btn-primary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => { setShowSettings(false); setShowGuide(false); }}>
+                    設定を完了して閉じる
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div>
+                    <label className="input-label">GAS Webアプリ URL</label>
+                    <input className="modal-input" value={config.gasUrl} onChange={e => setConfig({ ...config, gasUrl: e.target.value })} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="input-label">学級名</label>
+                      <input className="modal-input" value={config.gradeClass} onChange={e => setConfig({ ...config, gradeClass: e.target.value })} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="input-label">令和（年度）</label>
+                      <input type="number" className="modal-input" value={config.reiwa} onChange={e => setConfig({ ...config, reiwa: e.target.value })} />
+                    </div>
+                  </div>
+                  <button className="btn" style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0' }} onClick={() => setShowGuide(true)}>
+                    <Sparkles size={18} color="#d69e2e" /> 連携ガイドを表示する
+                  </button>
+                  <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={() => setShowSettings(false)}>
+                    閉じる
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
@@ -198,7 +307,10 @@ const App = () => {
                     style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
                   />
                 </label>
-                <span style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>第 {newsData.issueNumber} 号</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem', color: '#64748b' }}>{config.gradeClass}</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>第 {newsData.issueNumber} 号</span>
+                </div>
               </div>
               <input className="main-title-input" value={newsData.title} onChange={e => setNewsData({ ...newsData, title: e.target.value })} />
             </header>
