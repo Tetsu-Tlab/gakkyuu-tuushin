@@ -77,6 +77,22 @@ const App = () => {
   const [images, setImages] = useState([]);
   const fileInputRef = useRef(null);
 
+  // ポータルのURLパラメータ or postMessage から Gemini APIキーを受け取る
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlApiKey = params.get('apiKey');
+    if (urlApiKey) localStorage.setItem('geminiApiKey', urlApiKey);
+
+    const handleMessage = (e) => {
+      const { type, apiKey: key } = e.data || {};
+      if ((type === 'ANTIGRAVITY_SYNC' || type === 'ANTIGRAVITY_API_KEY') && key) {
+        localStorage.setItem('geminiApiKey', key);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   useEffect(() => {
     if (config.gasUrl) {
       localStorage.setItem('gasUrl', config.gasUrl.trim());
