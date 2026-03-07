@@ -2,14 +2,55 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Printer, FileSpreadsheet, Image as ImageIcon, Plus, Trash2, Calendar, Settings, Sparkles, ZoomIn, ZoomOut, Save, Type, X, FolderOpen, Database, RefreshCw, AlertCircle, ExternalLink, CheckCircle2, Copy, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const GRADES_LIST = ['1年生', '2年生', '3年生', '4年生', '5年生', '6年生'];
+const SUBJECTS_LIST = ['国語', '社会', '算数', '理科', '生活', '音楽', '図工', '家庭', '体育', '道徳', '学活', '総合', '外国語'];
+
+/** 授業進捗管理GASからJSONPでデータ取得 */
+function fetchProgressUnits(progressGasUrl, grade, subject) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'pgcb_' + Date.now();
+    const scriptId = 'pg-jsonp-script';
+    window[cbName] = (data) => {
+      delete window[cbName];
+      document.getElementById(scriptId)?.remove();
+      resolve(Array.isArray(data) ? data : []);
+    };
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = `${progressGasUrl}?action=getUnits&grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&callback=${cbName}`;
+    script.onerror = () => {
+      delete window[cbName];
+      document.getElementById(scriptId)?.remove();
+      reject(new Error('接続できませんでした。GAS URLを確認してください。'));
+    };
+    document.body.appendChild(script);
+    setTimeout(() => {
+      if (window[cbName]) {
+        delete window[cbName];
+        document.getElementById(scriptId)?.remove();
+        reject(new Error('タイムアウト'));
+      }
+    }, 12000);
+  });
+}
+
 const App = () => {
   const [config, setConfig] = useState({
     gradeClass: "4年1組",
     showSaturday: false,
     show7th: false,
     gasUrl: localStorage.getItem('gasUrl') || "",
+    progressGasUrl: localStorage.getItem('progressGasUrl') || "",
     reiwa: 8
   });
+
+  // 年間計画連携パネルの状態
+  const [showProgressPanel, setShowProgressPanel] = useState(false);
+  const [pgGrade, setPgGrade] = useState('4年生');
+  const [pgSubject, setPgSubject] = useState('国語');
+  const [pgUnits, setPgUnits] = useState([]);
+  const [pgLoading, setPgLoading] = useState(false);
+  const [pgSelected, setPgSelected] = useState([]);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -40,10 +81,53 @@ const App = () => {
     if (config.gasUrl) {
       localStorage.setItem('gasUrl', config.gasUrl.trim());
     } else {
-      // 初回起動時やURL未設定時にガイドを推奨する
       setShowGuide(!localStorage.getItem('gasUrl'));
     }
-  }, [config.gasUrl]);
+    if (config.progressGasUrl) {
+      localStorage.setItem('progressGasUrl', config.progressGasUrl.trim());
+    }
+  }, [config.gasUrl, config.progressGasUrl]);
+
+  const handleFetchProgressUnits = async () => {
+    const url = config.progressGasUrl.trim();
+    if (!url) {
+      alert('「設定」→「授業進捗管理GAS URL」を入力してください。');
+      setShowSettings(true);
+      return;
+    }
+    setPgLoading(true);
+    setPgUnits([]);
+    setPgSelected([]);
+    try {
+      const all = await fetchProgressUnits(url, pgGrade, pgSubject);
+      const pending = all.filter(u => u.status === '未実施');
+      setPgUnits(pending);
+      if (pending.length === 0) alert(`${pgGrade} ${pgSubject} の未実施授業はありません。`);
+    } catch (err) {
+      alert('取得失敗: ' + err.message);
+    } finally {
+      setPgLoading(false);
+    }
+  };
+
+  const handleInsertUnits = () => {
+    const toInsert = pgSelected.length > 0
+      ? pgUnits.filter(u => pgSelected.includes(u.id))
+      : pgUnits;
+    if (toInsert.length === 0) return;
+    const newActivities = toInsert.map(u => ({
+      id: Date.now() + u.id,
+      content: `【${pgSubject}】${u.title}：${u.content}`
+    }));
+    setNewsData(prev => ({
+      ...prev,
+      activities: [...prev.activities, ...newActivities]
+    }));
+    setShowProgressPanel(false);
+    setPgUnits([]);
+    setPgSelected([]);
+    alert(`✅ ${toInsert.length} 件の授業内容を「活動の記録」に挿入しました！`);
+  };
 
   // --- 絶対に繋がるJSONP読み込みの魔法 ---
   const loadFromGoogle = async () => {
@@ -172,6 +256,13 @@ const App = () => {
           </motion.button>
 
           <motion.button
+            whileHover={{ y: -2 }} className="btn" onClick={() => setShowProgressPanel(true)}
+            style={{ background: '#faf5ff', color: '#6b21a8', border: '2px solid #e9d5ff' }}
+          >
+            <Database size={18} /> 年間計画から挿入
+          </motion.button>
+
+          <motion.button
             whileHover={{ y: -2 }} className="btn" onClick={saveToGoogle} disabled={isSaving}
             style={{ background: '#eff6ff', color: '#1e40af', border: '2px solid #bfdbfe' }}
           >
@@ -273,11 +364,100 @@ const App = () => {
                       <input type="number" className="modal-input" value={config.reiwa} onChange={e => setConfig({ ...config, reiwa: e.target.value })} />
                     </div>
                   </div>
+                  <div>
+                    <label className="input-label">授業進捗管理GAS URL（年間計画連携用）</label>
+                    <input
+                      className="modal-input"
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      value={config.progressGasUrl}
+                      onChange={e => setConfig({ ...config, progressGasUrl: e.target.value })}
+                    />
+                    <p style={{ marginTop: '4px', fontSize: '0.8rem', color: '#64748b' }}>
+                      授業進捗管理シートのGAS URLを貼り付けると「年間計画から挿入」が使えます。
+                    </p>
+                  </div>
                   <button className="btn" style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0' }} onClick={() => setShowGuide(true)}>
                     <Sparkles size={18} color="#d69e2e" /> 連携ガイドを表示する
                   </button>
                   <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={() => setShowSettings(false)}>
                     閉じる
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 年間計画連携パネル */}
+      <AnimatePresence>
+        {showProgressPanel && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              style={{ background: '#fff', width: '100%', maxWidth: '640px', borderRadius: '24px', padding: '2rem', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Database size={22} color="#7c3aed" /> 年間計画から授業内容を挿入
+                </h2>
+                <button onClick={() => { setShowProgressPanel(false); setPgUnits([]); setPgSelected([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={22} /></button>
+              </div>
+
+              {/* 学年・教科選択 */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="input-label">学年</label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                  {GRADES_LIST.map(g => (
+                    <button key={g} onClick={() => { setPgGrade(g); setPgUnits([]); }}
+                      style={{ padding: '6px 12px', borderRadius: '20px', border: '1.5px solid', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer',
+                        background: pgGrade === g ? '#7c3aed' : '#f8fafc', color: pgGrade === g ? '#fff' : '#475569', borderColor: pgGrade === g ? '#7c3aed' : '#e2e8f0' }}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <label className="input-label">教科</label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {SUBJECTS_LIST.map(s => (
+                    <button key={s} onClick={() => { setPgSubject(s); setPgUnits([]); }}
+                      style={{ padding: '6px 12px', borderRadius: '20px', border: '1.5px solid', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer',
+                        background: pgSubject === s ? '#7c3aed' : '#f8fafc', color: pgSubject === s ? '#fff' : '#475569', borderColor: pgSubject === s ? '#7c3aed' : '#e2e8f0' }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button className="btn btn-primary" onClick={handleFetchProgressUnits} disabled={pgLoading}
+                style={{ width: '100%', marginBottom: '1rem', background: '#7c3aed', borderColor: '#7c3aed' }}>
+                {pgLoading ? <><RefreshCw size={16} className="animate-spin" /> 取得中...</> : `${pgGrade} ${pgSubject} の未実施授業を取得`}
+              </button>
+
+              {/* 未実施授業一覧 */}
+              {pgUnits.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <p style={{ fontWeight: '700', fontSize: '0.9rem', color: '#374151' }}>
+                      未実施授業 {pgUnits.length} 件（チェックで個別選択、未選択なら全件挿入）
+                    </p>
+                    <button onClick={() => setPgSelected(pgSelected.length === pgUnits.length ? [] : pgUnits.map(u => u.id))}
+                      style={{ fontSize: '0.8rem', color: '#7c3aed', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
+                      {pgSelected.length === pgUnits.length ? '全解除' : '全選択'}
+                    </button>
+                  </div>
+                  <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '12px' }}>
+                    {pgUnits.map(u => (
+                      <label key={u.id} style={{ display: 'flex', gap: '10px', padding: '10px 14px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', alignItems: 'flex-start' }}>
+                        <input type="checkbox" checked={pgSelected.includes(u.id)} onChange={e => {
+                          setPgSelected(prev => e.target.checked ? [...prev, u.id] : prev.filter(id => id !== u.id));
+                        }} style={{ marginTop: '3px', accentColor: '#7c3aed' }} />
+                        <div>
+                          <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>第{u.period}時 {u.title}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>{u.content}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary" onClick={handleInsertUnits} style={{ width: '100%', marginTop: '1rem' }}>
+                    ✅ {pgSelected.length > 0 ? `選択した ${pgSelected.length} 件` : `全 ${pgUnits.length} 件`}を「活動の記録」に挿入
                   </button>
                 </div>
               )}

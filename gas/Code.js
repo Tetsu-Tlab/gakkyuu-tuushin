@@ -25,6 +25,42 @@ function doPost(e) {
         var result = saveToSheet(params.payload);
         return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
     }
+    // 授業進捗管理シートからの「未実施授業」受け取り
+    if (params.action === "receiveProgress") {
+        var result = storePendingUnits(params.grade, params.subject, params.units);
+        return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+/**
+ * 授業進捗管理シートから送られた未実施授業を「未実施授業DB」シートに保存
+ */
+function storePendingUnits(grade, subject, units) {
+    try {
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName("未実施授業DB");
+        if (!sheet) {
+            sheet = ss.insertSheet("未実施授業DB");
+            sheet.appendRow(["学年", "教科", "時数", "単元名", "学習内容", "登録日時"]);
+        }
+        // 同じ学年・教科の既存データを削除して上書き
+        var data = sheet.getDataRange().getValues();
+        var toDelete = [];
+        for (var i = data.length - 1; i >= 1; i--) {
+            if (data[i][0] === grade && data[i][1] === subject) {
+                toDelete.push(i + 1);
+            }
+        }
+        toDelete.forEach(function(row) { sheet.deleteRow(row); });
+        // 新しいデータを追加
+        var now = new Date();
+        units.forEach(function(u) {
+            sheet.appendRow([grade, subject, u.period, u.title, u.content, now]);
+        });
+        return { success: true, count: units.length };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
 }
 
 function loadFromSheet() {
